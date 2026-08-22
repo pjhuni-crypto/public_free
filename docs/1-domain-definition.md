@@ -35,15 +35,11 @@
 | verifiedIdentity | 스킬서버가 카카오인증서로 인증을 완료하고 넘겨주는 결과(provider, 트랜잭션ID, 검증된 이름·전화번호). 예약서버는 이 값이 스킬서버(신뢰된 클라이언트)에서 왔다는 것만 서버간 인증으로 확인하고, 그 내용 자체를 다시 검증하지 않는다 |
 | status | 상태값(아래 상태 전이 참조) |
 
-**상태 전이**:
+**상태값**: `APPROVED` / `REJECTED`
 
-```
-(생성) → PENDING_VERIFICATION → [본인인증 완료] → APPROVED
-                              → [본인인증 실패/만료] → REJECTED
-```
-
-- "승인(APPROVED)"은 사람이 검토하는 것이 아니라 **정책 조건을 만족하면 시스템이 즉시 자동으로 부여**하는 상태다. 즉 본인인증이 끝나면 곧바로 승인 여부가 결정된다.
-- 신청 생성 시점에 정책 위반(아래 Policy 참조)이 있으면 신청 자체가 생성되지 않고 에러코드로 거부된다(신청이 REJECTED 상태로 남는 것이 아니라, 애초에 생성되지 않음).
+- 본인인증(IdentityVerification)은 **신청 생성 이전에** 스킬서버가 이미 완료한다 — `POST /applications` 호출 시점에 `verifiedIdentity`가 이미 포함되어 있으므로, "본인인증 대기 중인 신청"(PENDING_VERIFICATION)이라는 중간 상태는 예약서버에 존재하지 않는다(`2-technical-design.md`의 `POST /applications` 참조). 인증 자체의 대기/실패/만료는 Application이 아니라 IdentityVerification.status(`PENDING`/`FAILED`/`EXPIRED`)로 표현되며, 인증이 실패하면 애초에 `POST /applications`가 호출되지 않는다.
+- "승인(APPROVED)"은 사람이 검토하는 것이 아니라 **정책 조건을 만족하면 시스템이 생성 시점에 즉시 자동으로 부여**하는 상태다.
+- 신청 생성 시점에 정책 위반(아래 Policy 참조)이 있으면 신청 자체가 생성되지 않고 에러코드(409)로 거부된다(신청이 REJECTED 상태로 남는 것이 아니라, 애초에 생성되지 않음). `REJECTED`는 그 외에 백엔드가 생성 시점 자체 판단으로 거부하는 경우를 위해 남겨진 상태값이다(`2-technical-design.md`의 `201` 응답 참조) — 어떤 조건에서 발생하는지는 아직 명세되지 않았다.
 
 ### IdentityVerification (본인인증)
 

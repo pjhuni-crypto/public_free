@@ -4,22 +4,37 @@
 
 ## 아키텍처
 
-```
-카카오톡 사용자
-   │ 발화
-   ▼
-카카오 i 오픈빌더 (스킬 블록, useCallback=true)
-   │ webhook POST (5초 응답 SLA)
-   ▼
-스킬 서버 (신규 구현, Vercel 서버리스 함수, Node.js + TypeScript + Express)
-   1) 즉시: "생각 중이에요…" + useCallback:true 응답 (<1초)
-   2) waitUntil()로 응답 뒤에도 계속 실행: 세션 로드(Vercel KV) → OpenAI(tool calling)
-      → 필요한 tool을 예약 API 또는 카카오인증서 API에 호출 → 카카오 응답 포맷 생성 → callbackUrl로 1회 POST (1분 내 유효)
-   ▼                    ▼                                    ▼
-OpenAI API           카카오인증서 API                     예약 API (계약 하나,
-(회사 계정,           (카카오써트, 스킬서버가 직접 소유       개발=Mock 서버 /
-tool calling)         — 프로토타입은 Mock으로 대체)          운영=기존 예약시스템에 노출된 API,
-                                                            서버간 API 키로 인증)
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as 카카오톡 사용자
+    participant K as 카카오 i 오픈빌더<br/>(스킬 블록, useCallback=true)
+    participant S as 스킬 서버<br/>(Vercel 서버리스, Node.js+TS+Express)
+    participant O as OpenAI API<br/>(회사 계정, tool calling)
+    participant C as 카카오인증서 API<br/>(카카오써트 — 프로토타입은 Mock)
+    participant R as 예약 API<br/>(개발=Mock 서버 / 운영=기존 예약시스템)
+
+    U->>K: 발화
+    K->>S: webhook POST (5초 응답 SLA)
+    S-->>K: "생각 중이에요…" + useCallback:true (<1초)
+    K-->>U: 대기 메시지 표시
+
+    Note over S: waitUntil()로 응답 후에도 계속 실행
+    S->>S: 세션 로드 (Vercel KV)
+    S->>O: tool calling 요청
+    O-->>S: 호출할 tool 결정
+
+    alt 예약 조회/생성
+        S->>R: 예약 API 호출 (서버간 API 키 인증)
+        R-->>S: 응답
+    else 본인인증
+        S->>C: 카카오인증서 API 호출
+        C-->>S: 응답
+    end
+
+    S->>S: 카카오 응답 포맷 생성
+    S->>K: callbackUrl로 1회 POST (1분 내 유효)
+    K->>U: 최종 응답 전달
 ```
 
 카카오 스킬 응답은 5초 SLA가 고정이고 조정할 수 없다. 모든 발화를 **콜백 경로 하나로만** 처리한다(동기/비동기 분기를 만들지 않음). 콜백 URL은 1분간 유효하고 1회만 사용 가능하므로, 콜백 POST 자체는 정확히 1번만 보낸다.
