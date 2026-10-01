@@ -1,0 +1,20 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>MotW 실험</title>
+<body style="font-family:sans-serif;max-width:640px;margin:2em auto">
+<h3>CleanX MotW 우회 실험</h3>
+<p>각 버튼으로 저장한 뒤, 저장 폴더에서 PowerShell로 확인: <code>Get-Item .\*.xlsx -Stream Zone.Identifier -ErrorAction SilentlyContinue</code></p>
+<button id="a">A. 기존 방식 (a download)</button><br><br>
+<button id="b">B. showSaveFilePicker (새 파일)</button><br><br>
+<button id="c">C. showOpenFilePicker로 연 파일 덮어쓰기</button><br><br>
+<button id="d">D. showDirectoryPicker + 파일 생성</button>
+<pre id="log"></pre>
+<script>
+const log = (m) => (document.getElementById('log').textContent += m + '\n');
+// 내용은 빈 zip이라 엑셀에서 열리진 않는다 — MotW 부착 여부만 보는 용도
+const blob = () => new Blob([new Uint8Array([0x50,0x4b,0x05,0x06,...new Array(18).fill(0)])]);
+a.onclick = () => { const u = URL.createObjectURL(blob()); const el = document.createElement('a'); el.href = u; el.download = 'A_anchor.xlsx'; el.click(); log('A 완료'); };
+b.onclick = async () => { try { const h = await showSaveFilePicker({suggestedName:'B_savepicker.xlsx',types:[{accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx']}}]}); const w = await h.createWritable(); await w.write(blob()); await w.close(); log('B 완료'); } catch(e){ log('B 실패 '+e); } };
+c.onclick = async () => { try { const [h] = await showOpenFilePicker(); const w = await h.createWritable(); await w.write(blob()); await w.close(); log('C 완료: '+h.name+' (내용이 덮어써짐 — 복사본으로 시험할 것)'); } catch(e){ log('C 실패 '+e); } };
+d.onclick = async () => { try { const dir = await showDirectoryPicker({mode:'readwrite'}); const h = await dir.getFileHandle('D_dirpicker.xlsx',{create:true}); const w = await h.createWritable(); await w.write(blob()); await w.close(); log('D 완료'); } catch(e){ log('D 실패 '+e); } };
+</script>
